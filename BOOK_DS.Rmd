@@ -1,0 +1,202 @@
+---
+title: "数据科学家：R语言"
+author: "Hui Lin"
+date: "January 24, 2016"
+output: 
+ html_document:
+  theme: united
+  highlight: tango
+  toc: true
+  toc_depth: 5
+  number_sections: true
+---
+
+# 序言
+
+本书的写作对象是那些现在从事数据分析相关行业，或者之后想从事数据分析行业的人。本书意在为实践者提从事数据科学家这门职业的指导。读者可以从阅读中知道许多数据科学行业需要的技能，以及背后的“分析哲学”。书会选择部分最常用的，有效模型加以展开。
+
+数据科学家这个行业的本质是应用。市面上有很多文章，出版物介绍各种数据模型，大多数此类书籍并不能让读者重复书中所述的分析过程，因此读者真正实践书中的知识会遇到很多困难。本书着重在于数据科学的实际应用，让读者能够重复书中的结果。本书极力避免数学公式和任何不像人话的语言，但可能有少数例外。我们在少数描述技术细节的初衷是为了帮助读者理解模型的长处和弱点，而非单纯的介绍数理统计知识。对于各种算法的实施，书中使用的是R语言，原因如下：
+
+1. 免费的且可以在不同操作系统上使用。
+1. 开源、可扩展：它在通用公共许可（General Public License）下发行，在此构架下任何人可以检查修改源程序。含有很多最新的模型。
+1. The goal of R is "to turn ideas into software, quickly and faithfully" (John Chambers)
+1. R有强大图形可视化和自动化报告功能
+1. 笔者10年使用R的经验证明无论在学术还是业界，这都是非常有效的工具。
+
+不熟悉R的读者可以在网上找到大量的入门教程。
+我会建立一个书的网页，读者可以从上面下载代码以及所有需要的数据。以及后续的更新信息。
+全书布局，可重复，R和大数据。
+附录中会有其它工具介绍
+
+# 介绍
+
+- 什么是数据科学家？
+
+
+>  计算机科学刊物上的学术论文本身并不是学术知识，而只是为学术知识打的广告。真正的知识在于背后整个软件开发环境，以及生成（论文中）结果的完整过程。An article about computational science in a scientific publication is not the scholarship itself, it is merely advertising of the scholarship. The actual schoarship is the complete sofeware development environment and the complete set of instructions which generated the figures. [Buckheit and Donoho (1995)]
+
+1. 数据准备和探索
+1. 数据表达变换
+1. 数据建模
+1. 数据可视化和结果展示
+1. 数据科学的科学（候选）
+
+
+
+
+# 数据科学家干什么？
+
+# 数据分析一般流程
+
+## 问题到数据
+
+## 数据到信息
+在这个流程中，我要强调两个非常重要的技术环节，数据预处理和模型检验。数据预处理占用相当大比例的时间（图中每一个步骤方块中的百分比是大致占用的时间范围）。关于数据处理的常用方法，
+
+## 信息到知识
+
+业界普遍反映数据科学家欠缺将数据中的信息转化为商业知识的能力，大部分数据科学家止于从数据到信息这一步。如何做到从信息到知识呢？这个需要你对所在行业有较深入的了解，具有应用该行业说故事的能力。这是艺术的部分。这也是一个矛盾的地方，因为这意味着数据科学家不如很多人之前所设想的可以单独成为一个职能，应用在不同的领域。当从技术角度上说这是可行的，但是从实践的角度，仅是应用技术得到一个模型结果远远不够，将结果转化为真正的市场营销的决策建议并和相关营销人员交流，保证结果应用在市场营销中提高效率，是非常关键的收尾环节，这一步决定了你工作的价值。但这一步要求深入了解行业，做到这点需要在某个特定行业中从业较长时间，因此从实践上讲，一个数据分析师很难细致了解每一个行业，即使“从数据到信息”这个步骤可以一般化到不同领域，但从“信息到知识”将数据科学家从某种程度上限定于某一领域。
+
+# 数据预处理
+
+## Introduction
+
+There are a number of reasons a model falls, such as:
+
+1. Inadequate data pre-processing
+1. Inadequate model validation
+1. Unjustified extrapolation
+1. Over-fitting
+In this section, I am going to summarize some common data pre-processing approaches.
+
+## Centering and Scaling
+
+It is the most straightforward data transformation. It centers and scales a variable to mean 0 and standard deviation 1. It ensures that the criterion for finding linear combinations of the predictors is based on how much variation they explain and therefore improves the numerical stability. Models involving finding linear combinations of the predictors to explain response/predictors variation need data centering and scaling, such as PCA and PLS. You can easily writing code yourself to conduct this transformation. Or the function preProcess() in package caret can apply this transformation to a set of predictors.
+
+```{r,message=FALSE}
+#install packages needed
+library(caret)
+library(e1071)
+library(gridExtra) 
+library(lattice)
+library(imputeMissings)
+library(RANN)
+library(corrplot)
+library(nnet)
+```
+
+```{r}
+head(cars)
+```
+
+```{r}
+trans<-preProcess(cars,method=c("center","scale"))
+transformed<-predict(trans,cars)
+par(mfrow=c(1,2))
+hist(cars$dist,main="Original",xlab="dist")
+hist(transformed$dist,main="Centered and Scaled",xlab="dist")
+```
+
+Sometimes you only need to scale the variable. For example, if the model adds penalty to the parameter estimates (such as $L_2$ penalty is ridge regression and $L_1$ penalty in LASSO), the variables need to have similar scale to ensure a fair variable selection. I am heavy user of this kind of penalty-based model in my work and I used the following quantile transformation:
+
+$$x_{ij}^{*}=\frac{x_{ij}-quantile(x_{.j},0.01)}{quantile(x_{.j}-0.99)-quantile(x_{-j},0.01)}$$
+
+The reason to use 99% and 1% quantile instead of maximum and minimum values is to resist the impact of outliers.
+
+It is easy to write a function to do it:
+
+```{r}
+qscale<-function(dat){
+  for (i in 1:ncol(dat)){
+    up<-quantile(dat[,i],0.99)
+    low<-quantile(dat[,i],0.01)
+    diff<-up-low
+    dat[,i]<-(dat[,i]-low)/diff
+  }
+  return(dat)
+}
+```
+
+In order to illustrate, let’s simulate a data set with three variables: income, age and education.
+
+```{r}
+set.seed(2015)
+income<-sample(seq(50000,150000,by=500),95)
+age<-income/2000-10
+noise<-round(runif(95)*10,0)
+age<-age+noise
+income<-c(income,10000,15000,300000,250000,230000)
+age<-c(age,30,20,25,35,95)
+demo<-data.frame(income,age)
+demo$education<-as.factor(sample(c("High School","Bachelor","Master","Doctor"),100,replace = T,prob =c(0.7,0.15,0.12,0.03) ))
+summary(demo[,c("income","age")])
+```
+It is clear that income and age are not on the same scale. Now apply the function qscale() on the simulated data demo.
+
+```{r}
+transformed<-qscale(demo[,c("income","age")])
+summary(transformed)
+```
+
+## Resolve Skewness
+## Resolve Outliers
+## Missing Values
+## Impute missing values with median/mode
+## Impute missing values based on K-nearest neighbors
+## Collinearity
+## Sparse Variables
+## Re-encode Dummy Variables
+
+# 建模技术模块
+## 数据划分和再抽样
+## 变量选择
+## 模型选择
+
+## 建模需要注意的问题
+
+### 因变量误差
+### 自变量误差
+### 失衡数据
+     
+# 线性回归极其衍生
+## 普通线性回归
+## 逻辑回归
+## 罚函数模型
+
+# 树模型
+## 基本树模型
+## 袋状树
+## 随机森林
+## 其它树话题
+
+# 聚类判别分析
+## 聚类分析
+## 判别分析
+关于100多种判别分析的选择。
+
+## 案例：客户分组
+
+# 关联法则分析
+
+## 关联法则简介
+
+关联法则挖掘的基本想法是：当若干事件共同发生的频率大于某人仅从它们各自单独发生的频率出发预期的共同发生率时，此共同发生的情况即为一个令人感兴趣的模式。
+
+基本度量：
+ - 支持
+ - 信用
+ - 提升
+ 
+## 案例：商业购物篮分析
+
+对于销售产品纪录，由于大部分东西不会和其它一些东西在一个交易中同时出现，因为可能的组合太多了。这就导致有大量的数据点但每个观测包含的信息相对较少。在这种情况下，许多分析都不起作用，如相关性分析和线性回归。关联法则挖掘关联法则分析试图从大量的稀疏数据中搜寻有信息量的不同模式。
+
+## 关联法则可视化
+
+# 数据可视化和结果展示
+主要介绍可重复报告
+
+# 数据科学的科学
+
+
+
